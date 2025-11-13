@@ -69,17 +69,20 @@ def clean_exported_data(ignored_artist: List[str]):
 
     for file in files:
         with open(file, "r", encoding="UTF-8") as f:
-            streams = json.load(f)
-            cleaned_streams = [s for s in streams if s["master_metadata_album_artist_name"] not in ignored_artist]
-            filtered_streams = [s for s in streams if s["master_metadata_album_artist_name"] in ignored_artist]
-            
-            cleaned_file_name = CLEANED_DIR + "/" + pathlib.Path(f.name).stem + "_cleaned.json"
+            try:
+                streams = json.load(f)
+                cleaned_streams = [s for s in streams if s["master_metadata_album_artist_name"] not in ignored_artist]
+                filtered_streams = [s for s in streams if s["master_metadata_album_artist_name"] in ignored_artist]
+                
+                cleaned_file_name = CLEANED_DIR + "/" + pathlib.Path(f.name).stem + "_cleaned.json"
 
-            with open(cleaned_file_name, "w") as cf:
-                cf.write(json.dumps(cleaned_streams))
-                cf.close()
-            
-            print(f"Cleaned {f.name} -> {cleaned_file_name} ({len(filtered_streams)} of {len(streams)}  streams removed)")
+                with open(cleaned_file_name, "w") as cf:
+                    cf.write(json.dumps(cleaned_streams))
+                    cf.close()
+                
+                print(f"Cleaned {f.name} -> {cleaned_file_name} ({len(filtered_streams)} of {len(streams)}  streams removed)")
+            except Exception as e:
+                print(f"Error cleaning streams from {f.name}: {str(e)}")
 
 
 if __name__ == "__main__":

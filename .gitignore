@@ -1,4 +1,4 @@
 .DS_Store
-ignored_artists.json
+reviewed_artists.json
 exports/
 cleaned/

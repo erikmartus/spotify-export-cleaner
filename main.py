@@ -6,7 +6,7 @@ import pathlib
 
 EXPORTS_DIR = "exports"
 CLEANED_DIR = "cleaned"
-IGNORED_ARTIST_FILE = "ignored_artists.json"
+REVIEWED_ARTISTS_FILE = "reviewed_artists.json"
 
 def main():
     os.makedirs(EXPORTS_DIR, exist_ok=True)
@@ -37,20 +37,51 @@ def load_streaming_history() -> List[dict]:
     return streams
 
 
+def should_prompt_for_artist(
+    artist: str,
+    previously_allowed_artists: List[str],
+    previously_ignored_artists: List[str],
+    skip_previously_allowed_artists: bool,
+    skip_previously_ignored_artists: bool
+) -> bool:
+    if skip_previously_allowed_artists and artist in previously_allowed_artists:
+        return False
+    if skip_previously_ignored_artists and artist in previously_ignored_artists:
+        return False
+    return True
+
 def get_ignored_artists(streams: List[dict]) -> List[str]:
     try:
-        with open(IGNORED_ARTIST_FILE, "r") as f:
-            previously_ignored_artists = json.load(f)
+        with open(REVIEWED_ARTISTS_FILE, "r") as f:
+            reviewed_json = json.load(f)
+            previously_allowed_artists = reviewed_json.get("allowed_artists", [])
+            previously_ignored_artists = reviewed_json.get("ignored_artists", [])
             f.close()
     except FileNotFoundError:
+        previously_allowed_artists = []
         previously_ignored_artists = []
-    artists = sorted({ s["master_metadata_album_artist_name"] for s in streams }, key=lambda x: x.lower())
 
+    skip_previously_allowed_artists = True
+    skip_previously_ignored_artists = True
+    if previously_allowed_artists:
+        skip_previously_allowed_artists = inquirer.confirm(f"Skip reviewing {len(previously_allowed_artists)} previously allowed artists?", default=True)
+    if previously_ignored_artists:
+        skip_previously_ignored_artists = inquirer.confirm(f"Skip reviewing {len(previously_ignored_artists)} previously ignored artists?", default=True)
+    all_artists = sorted({s["master_metadata_album_artist_name"] for s in streams}, key=lambda x: x.lower())
+    filtered_artists = [
+        a for a in all_artists
+        if (
+            not (skip_previously_allowed_artists and a in previously_allowed_artists)
+            and not (skip_previously_ignored_artists and a in previously_ignored_artists)
+        )
+    ]
+
+    # TODO: update questions to batch, figure out how to save progress as you go.
     questions = [
         inquirer.Checkbox(
             "ignored_artists",
-            message=f"Which artists would you like to ignore? ({len(artists)} found, {len(previously_ignored_artists)} previously ignored)",
-            choices=artists,
+            message=f"Which artists would you like to ignore? ({len(all_artists)} found, {len(previously_allowed_artists)} allowed, {len(previously_ignored_artists)} ignored)",
+            choices=filtered_artists,
             default=previously_ignored_artists,
             carousel=True
         )
@@ -58,8 +89,8 @@ def get_ignored_artists(streams: List[dict]) -> List[str]:
     answer = inquirer.prompt(questions)
     ignored_artists = answer.get("ignored_artists", [])
 
-    with open(IGNORED_ARTIST_FILE, "w") as f:
-        f.write(json.dumps(ignored_artists))
+    with open(REVIEWED_ARTISTS_FILE, "w") as f:
+        f.write(json.dumps({"allowed_artists": [], "ignored_artists": ignored_artists}))
 
     return ignored_artists
 
